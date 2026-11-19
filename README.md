@@ -171,3 +171,59 @@ Cuando LOOP dejó de saltar, AX valía 0x0008 y CX 0x0000, como pide la verifica
 | CD 20 | INT 20 | 2 | Opcode CD + número de interrupción |
 
 Hay dos diferencias reales con la guía. Primera: `ADD AX,0002` se ensambló como `83 C0 02` y no como `05 02 00`. Las dos ocupan 3 bytes; esta codificación guarda el inmediato en un solo byte que el procesador extiende con signo a 16 bits, y por eso U lo muestra como `ADD AX,+02`. Segunda: el programa ocupa 13 bytes, de modo que `L0C` (12 bytes) deja fuera el último byte del `INT 20`, como se ve en la captura, donde la fila termina en `CD`. El desplazamiento de LOOP se calcula respecto a la instrucción siguiente: 0x0106 − 0x010B = −5 = 0xFB. Ese desplazamiento de 8 bits con signo limita los saltos cortos a un rango de −128 a +127 bytes.
+
+### Checkpoint 3: Bucle equivalente con DEC/JNZ y demostración con G
+
+![Ensamblado DEC/JNZ](capturas/CP3_ensamblado_dec_jnz.png)
+
+![CP3 traza DEC/JNZ](capturas/CP3_traza_dec_jnz.png)
+
+El programa se ensambló en 0200 y `U 200 20D` confirmó `49` para `DEC CX` y `75 FA` para `JNZ 0206` (0x0206 − 0x020C = −6 = 0xFA). La captura de la traza reúne cuatro pantallas: las 15 invocaciones de `T` y, al final, la demostración con `G 20C` seguida de `R AX`.
+
+| Paso T | Iteración | Instrucción | AX después | CX después | IP siguiente | ¿JNZ salta? |
+|---|---|---|---|---|---|---|
+| 1 | Inicio | MOV AX,0000 | 0000 | 0000 | 0203 | — |
+| 2 | Inicio | MOV CX,0004 | 0000 | 0004 | 0206 | — |
+| 3 | 1 | ADD AX,+02 | 0002 | 0004 | 0209 | — |
+| 4 | 1 | DEC CX | 0002 | 0003 | 020A | — |
+| 5 | 1 | JNZ 0206 | 0002 | 0003 | 0206 | Sí (ZF=0) |
+| 6 | 2 | ADD AX,+02 | 0004 | 0003 | 0209 | — |
+| 7 | 2 | DEC CX | 0004 | 0002 | 020A | — |
+| 8 | 2 | JNZ 0206 | 0004 | 0002 | 0206 | Sí (ZF=0) |
+| 9 | 3 | ADD AX,+02 | 0006 | 0002 | 0209 | — |
+| 10 | 3 | DEC CX | 0006 | 0001 | 020A | — |
+| 11 | 3 | JNZ 0206 | 0006 | 0001 | 0206 | Sí (ZF=0) |
+| 12 | 4 | ADD AX,+02 | 0008 | 0001 | 0209 | — |
+| 13 | 4 | DEC CX | 0008 | 0000 | 020A | — (ZF pasa a 1, ZR) |
+| 14 | 4 | JNZ 0206 | **0008** | **0000** | 020C | No (ZF=1) |
+| 15 | Fin | INT 20 | — | — | — | Program terminated normally |
+
+En el paso 1, BX y CX aparecen en 0000 y no con los valores del programa anterior. Al ejecutarse `INT 20` en el bucle LOOP, DEBUG informó la terminación y reinició los registros. Esa es también la razón por la que, tras la terminación, `R IP` mostró `IP 0100`. El paso 13 muestra la cadena causal del mecanismo: `DEC CX` lleva CX a cero, activa ZF (la bandera cambia de NZ a ZR) y JNZ lo lee en el paso 14 para no saltar.
+
+**Demostración con G.** Con `R IP` en 0200 y `G 20C`, DEBUG ejecutó el bucle completo a velocidad normal y se detuvo en 0724:020C con AX=0008, CX=0000 y ZR. Luego `R AX` mostró `AX 0008` y se pulsó Enter sin escribir valor, con lo que se confirmó el resultado sin modificar el registro.
+
+**Conteo comparado de instrucciones ejecutadas.**
+
+| Versión | Inicialización | Instrucciones por iteración | Iteraciones | Terminación | Total de T |
+|---|---|---|---|---|---|
+| LOOP | 2 | 2 (ADD + LOOP) | 4 | 1 | **11** |
+| DEC/JNZ | 2 | 3 (ADD + DEC + JNZ) | 4 | 1 | **15** |
+
+La diferencia de 4 instrucciones corresponde exactamente a una instrucción de control adicional por iteración. Es coherente con los bytes de código: el control del bucle ocupa 2 bytes con LOOP (`E2 FB`) y 3 con DEC/JNZ (`49 75 FA`), de modo que el programa con DEC/JNZ ocupa 14 bytes (0200 a 020D) frente a 13 del programa con LOOP.
+
+### Decisión técnica (Paso 10): LOOP frente a DEC/JNZ
+
+Para este bucle contador simple, en el que CX no cumple ninguna otra función dentro del cuerpo, la opción recomendada es LOOP. Su codificación `E2 FB` ocupa 2 bytes frente a los 3 de `DEC CX` + `JNZ` (`49 75 FA`). Además, el procesador extrae y decodifica una sola instrucción de control por iteración en lugar de dos: la traza lo confirmó con 11 invocaciones de T frente a 15 para el mismo resultado, AX = 0x0008. DEC/JNZ sería preferible cuando el cuerpo del bucle necesita CX para otra operación, por ejemplo como contador de desplazamientos con `SHL AX,CL` o en instrucciones de cadena con REP, porque LOOP siempre decrementa CX y lo corrompería. También lo sería cuando la condición de salida no es "CX ≠ 0" sino el resultado de un `CMP` evaluado con cualquier salto condicional, o cuando se quiere contar con otro registro, como `DEC BX`. Para comparar el tamaño no hace falta ejecutar nada: `U 100 10D` y `U 200 20D` listan las direcciones y los bytes de cada instrucción. LOOP aparece como 2 bytes entre 0109 y 010B, mientras que DEC y JNZ suman 3 bytes entre 0209 y 020C.
+
+### Decisión técnica (Paso 12): T frente a G para bucles de muchas iteraciones
+
+Si CX empezara en 0x0064, verificar el resultado con T exigiría unas 300 invocaciones (3 por iteración en la versión DEC/JNZ), cada una con su volcado de registros. `G 20C`, en cambio, ejecuta todo a velocidad normal y se detiene solo en el punto de interrupción, entregando el estado final en un único paso. Lo que se pierde con G es la historia intermedia: no se observa cómo decrece CX, en qué iteración cambia la paridad ni el momento exacto en que DEC activa ZF y JNZ deja de saltar. En este laboratorio, T fue indispensable en los Pasos 4, 7 y 11, porque completar una tabla de traza exige registrar AX, CX, IP y las banderas después de cada instrucción, y solo T se detiene en cada una. G solo habría entregado la última fila de cada tabla. Tras ejecutar `G 20C`, el comando para confirmar únicamente el valor final de AX es `R AX`, pulsando Enter sin escribir un valor nuevo. Así se muestra `AX 0008` sin modificarlo, como quedó registrado en la captura del Checkpoint 3.
+
+## Conclusiones
+
+- DEBUG permite ver la correspondencia directa entre mnemónicos y bytes de código máquina. Una misma instrucción puede tener más de una codificación válida: `ADD AX,BX` salió como `01 D8` y no como `03 C3`, y `ADD AX,0002` como `83 C0 02` y no como `05 02 00`. U es la herramienta para confirmar cuál se generó sin ejecutar nada.
+- En modo real no hay separación entre código y datos. U interpretó como instrucciones bytes residuales de la memoria, y E y MOV con direccionamiento directo trabajaron sobre la misma región que D mostraba como datos.
+- El orden little-endian se comprobó dos veces: al escribir `78 56` con E y leer AX=5678, y en los inmediatos de 16 bits de cada MOV.
+- LOOP y DEC/JNZ producen el mismo resultado (AX=0008), pero LOOP lo logra con un byte y una instrucción menos por iteración: 11 frente a 15 instrucciones ejecutadas. DEC/JNZ sigue siendo necesario cuando CX tiene otro uso o la condición de salida no depende de un contador.
+- T y G se complementan. T es imprescindible para construir tablas de traza; G con `R AX` es la forma práctica de verificar el resultado final de bucles largos.
+- Los valores concretos dependen del entorno: el segmento 0724, el recorte de nombres de directorio a 8 caracteres y el reinicio de registros que DEBUG hace tras `Program terminated normally`. Por eso todas las tablas registran lo observado en la sesión real y no los valores de referencia de la guía.
