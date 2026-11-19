@@ -117,3 +117,57 @@ Aunque `MOV AX,0005` (B8 05 00) y `MOV AX,[0300]` (A1 00 03) ocupan los mismos 3
 ## Parte 2: Ensamblado y ejecución paso a paso
 
 Los tres programas de esta parte se ensamblaron y trazaron en una sola sesión de DEBUG dentro de `C:\LAB3P2`. Todas las tablas usan los valores reales que mostró la sesión, con el segmento 0724 de esta instalación en lugar del 1357 de la guía.
+
+### Checkpoint 1: Traza del programa de suma
+
+![CP1 traza suma](capturas/CP1_traza_suma.png)
+
+La captura reúne dos pantallas consecutivas de la misma sesión. La primera muestra el ensamblado con `A 100`, la verificación con `U 100 10E` y el ajuste con `R IP` a 0100. La segunda muestra la traza completa con cinco invocaciones de `T`.
+
+| # | Instrucción ejecutada | AX | BX | CX | IP siguiente | ZF | CF | SF |
+|---|---|---|---|---|---|---|---|---|
+| 1 | MOV AX,000A | 000A | 0000 | 0000 | 0103 | 0 (NZ) | 0 (NC) | 0 (PL) |
+| 2 | MOV BX,0005 | 000A | 0005 | 0000 | 0106 | 0 | 0 | 0 |
+| 3 | MOV CX,0003 | 000A | 0005 | 0003 | 0109 | 0 | 0 | 0 |
+| 4 | ADD AX,BX | 000F | 0005 | 0003 | 010B | 0 | 0 | 0 |
+| 5 | ADD AX,CX | **0012** | 0005 | 0003 | 010D | 0 | 0 | 0 |
+
+AX terminó en 0x0012 (18 en decimal), el valor esperado. Las tres instrucciones MOV no modifican las banderas, por eso las tres primeras filas conservan el estado inicial. Después de `ADD AX,BX` la paridad pasó a PE: 0x0F tiene cuatro bits en 1 en su byte bajo, una cantidad par. Después de `ADD AX,CX` se activó la bandera de acarreo auxiliar (AC), porque la suma de los nibbles bajos, F + 3 = 0x12, produjo un acarreo del bit 3 al bit 4. ZF, CF y SF se mantuvieron en 0 durante toda la traza: el resultado nunca fue cero, nunca se desbordó de 16 bits y siempre fue positivo. Igual que en la Parte 1, el DEBUG de esta instalación codificó `ADD AX,BX` como `01 D8` y `ADD AX,CX` como `01 C8`, la forma equivalente de la codificación `03 C3` y `03 C1` que muestra la guía.
+
+### Checkpoint 2: Traza del bucle con LOOP
+
+![CP2 traza loop](capturas/CP2_traza_loop.png)
+
+El programa se ensambló sobre la misma dirección 0100 y se verificó con `U 100 10D`. Con `R IP` se mostró `IP 010D`, porque el programa de suma se había detenido sobre su INT 20 sin ejecutarlo, y se cambió a 0100. La captura reúne las tres pantallas de la traza, con 11 invocaciones de `T` en total.
+
+| Paso T | Iteración | Instrucción | AX después | CX después | IP siguiente | ¿LOOP salta? |
+|---|---|---|---|---|---|---|
+| 1 | Inicio | MOV AX,0000 | 0000 | 0003 | 0103 | — |
+| 2 | Inicio | MOV CX,0004 | 0000 | 0004 | 0106 | — |
+| 3 | 1 | ADD AX,+02 | 0002 | 0004 | 0109 | — |
+| 4 | 1 | LOOP 0106 | 0002 | 0003 | 0106 | Sí |
+| 5 | 2 | ADD AX,+02 | 0004 | 0003 | 0109 | — |
+| 6 | 2 | LOOP 0106 | 0004 | 0002 | 0106 | Sí |
+| 7 | 3 | ADD AX,+02 | 0006 | 0002 | 0109 | — |
+| 8 | 3 | LOOP 0106 | 0006 | 0001 | 0106 | Sí |
+| 9 | 4 | ADD AX,+02 | 0008 | 0001 | 0109 | — |
+| 10 | 4 | LOOP 0106 | **0008** | **0000** | 010B | No |
+| 11 | Fin | INT 20 | — | — | — | Program terminated normally |
+
+Cuando LOOP dejó de saltar, AX valía 0x0008 y CX 0x0000, como pide la verificación. En el paso 1, CX aún mostraba 0003: era el valor que había dejado el programa de suma. Solo cambió a 0004 al ejecutar `MOV CX,0004`, lo que confirma que DEBUG no reinicia los registros al ensamblar un programa nuevo. A lo largo de la traza las banderas no cambian por efecto de LOOP, que no altera ninguna bandera. La única variación es la paridad (PO o PE), que actualiza cada ADD.
+
+### Análisis del código máquina (Paso 8)
+
+![Código máquina LOOP](capturas/CP2_codigo_maquina_loop.png)
+
+`D CS:100 L0C` mostró `B8 00 00 B9 04 00 83 C0-02 E2 FB CD`:
+
+| Bytes | Instrucción | Tamaño | Análisis |
+|---|---|---|---|
+| B8 00 00 | MOV AX,0000 | 3 | Opcode B8 + inmediato de 16 bits |
+| B9 04 00 | MOV CX,0004 | 3 | Opcode B9 + 0x0004 en little-endian |
+| 83 C0 02 | ADD AX,+02 | 3 | Opcode 83 /0 con inmediato de 8 bits extendido con signo |
+| E2 FB | LOOP 0106 | 2 | Opcode E2 + desplazamiento relativo FB (−5) |
+| CD 20 | INT 20 | 2 | Opcode CD + número de interrupción |
+
+Hay dos diferencias reales con la guía. Primera: `ADD AX,0002` se ensambló como `83 C0 02` y no como `05 02 00`. Las dos ocupan 3 bytes; esta codificación guarda el inmediato en un solo byte que el procesador extiende con signo a 16 bits, y por eso U lo muestra como `ADD AX,+02`. Segunda: el programa ocupa 13 bytes, de modo que `L0C` (12 bytes) deja fuera el último byte del `INT 20`, como se ve en la captura, donde la fila termina en `CD`. El desplazamiento de LOOP se calcula respecto a la instrucción siguiente: 0x0106 − 0x010B = −5 = 0xFB. Ese desplazamiento de 8 bits con signo limita los saltos cortos a un rango de −128 a +127 bytes.
