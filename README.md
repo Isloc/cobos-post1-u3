@@ -47,14 +47,14 @@ El laboratorio se ejecutó en DOSBox 0.74-3 sobre Windows, con la carpeta `C:\DO
 
 ```
 Z:\> KEYB LA
-Z:\> MOUNT C C:\DOSWork
+Z:\> MOUNT C C:/DOSWork
 Z:\> C:
 C:\> MD LAB3POST1
 C:\> CD LAB3POST1
 C:\LAB3POST> DEBUG
 ```
 
-El prompt muestra `C:\LAB3POST>` y no `C:\LAB3POST1>`. DOS solo admite nombres de directorio de hasta 8 caracteres más extensión (formato 8.3), así que DOSBox recorta `LAB3POST1` a `LAB3POST`. Por la misma razón, la Parte 2 se trabajó en `LAB3P2`: `LAB3POST2` también se habría recortado a `LAB3POST` y habría coincidido con el directorio de la Parte 1.
+La carpeta se montó escribiendo `C:/DOSWork` con barra normal en lugar de `C:\DOSWork`: Windows acepta los dos separadores, y DOSBox respondió `Drive C is mounted as local directory c:/doswork\`, con lo que quedó montada la misma carpeta que indica la guía. El prompt muestra `C:\LAB3POST>` y no `C:\LAB3POST1>`. DOS solo admite nombres de directorio de hasta 8 caracteres más extensión (formato 8.3), así que DOSBox recorta `LAB3POST1` a `LAB3POST`. Por la misma razón, la Parte 2 se trabajó en `LAB3P2`: `LAB3POST2` también se habría recortado a `LAB3POST` y habría coincidido con el directorio de la Parte 1.
 
 ### Checkpoint 1: Estado de registros (comando R)
 
@@ -218,6 +218,21 @@ Para este bucle contador simple, en el que CX no cumple ninguna otra función de
 ### Decisión técnica (Paso 12): T frente a G para bucles de muchas iteraciones
 
 Si CX empezara en 0x0064, verificar el resultado con T exigiría unas 300 invocaciones (3 por iteración en la versión DEC/JNZ), cada una con su volcado de registros. `G 20C`, en cambio, ejecuta todo a velocidad normal y se detiene solo en el punto de interrupción, entregando el estado final en un único paso. Lo que se pierde con G es la historia intermedia: no se observa cómo decrece CX, en qué iteración cambia la paridad ni el momento exacto en que DEC activa ZF y JNZ deja de saltar. En este laboratorio, T fue indispensable en los Pasos 4, 7 y 11, porque completar una tabla de traza exige registrar AX, CX, IP y las banderas después de cada instrucción, y solo T se detiene en cada una. G solo habría entregado la última fila de cada tabla. Tras ejecutar `G 20C`, el comando para confirmar únicamente el valor final de AX es `R AX`, pulsando Enter sin escribir un valor nuevo. Así se muestra `AX 0008` sin modificarlo, como quedó registrado en la captura del Checkpoint 3.
+
+### Checkpoint 4: Repositorio GitHub finalizado
+
+El repositorio `cobos-post1-u3` reúne en un solo lugar el README.md y la carpeta `capturas/` con las siete capturas obligatorias de ambas partes, cada una con el nombre exacto que pide el laboratorio. Se agregaron además dos capturas de apoyo para la Parte 2: `CP2_codigo_maquina_loop.png` (Paso 8) y `CP3_ensamblado_dec_jnz.png` (Paso 9). El historial de commits refleja el avance real del laboratorio, con tres commits por parte:
+
+| Parte | Commit |
+|---|---|
+| 1 | Agrega estructura inicial de la Parte 1 |
+| 1 | Completa registros (CP1) y volcado de memoria (CP2) de la Parte 1 |
+| 1 | Completa ensamblado (CP3), direccionamiento directo (CP4) y decisiones técnicas de la Parte 1 |
+| 2 | Agrega estructura inicial de la Parte 2 |
+| 2 | Completa traza suma (CP1) y traza loop (CP2) |
+| 2 | Completa bucle DEC/JNZ y decisiones técnicas (CP3) |
+
+Los commits posteriores solo ajustan el formato del README y documentan este checkpoint; no cambian ningún resultado ni ninguna captura.
 
 ## Conclusiones
 
