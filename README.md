@@ -1,8 +1,8 @@
 # cobos-post1-u3: Manejo del DEBUG en DOSBox
 
-**Curso:** Arquitectura de Computadores (1154507-B), Universidad Francisco de Paula Santander
-**Estudiante:** Isabella Cobos Lizarazo (1152507)
-**Unidad 3:** Post-contenido. Exploración, ensamblado y ejecución paso a paso en DOSBox
+- **Curso:** Arquitectura de Computadores (1154507-B), Universidad Francisco de Paula Santander
+- **Estudiante:** Isabella Cobos Lizarazo (1152507)
+- **Unidad 3:** Post-contenido. Exploración, ensamblado y ejecución paso a paso en DOSBox
 
 Este repositorio documenta un laboratorio de dos partes realizado en DOSBox 0.74-3 con el depurador DEBUG. La **Parte 1** inspecciona el estado inicial del procesador y la memoria con los comandos R, F, D, E y U. Termina leyendo con direccionamiento directo a memoria (`MOV AX,[0300]`) un valor escrito antes con E. La **Parte 2** ensambla programas con A, los ejecuta instrucción a instrucción con T y compara un bucle con LOOP frente a su equivalente con DEC/JNZ, además del comando G como verificación rápida.
 
