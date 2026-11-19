@@ -113,3 +113,7 @@ De los cuatro comandos disponibles, el adecuado para confirmar la escritura del 
 ### Decisión técnica (Paso 14): direccionamiento inmediato frente a directo a memoria
 
 Aunque `MOV AX,0005` (B8 05 00) y `MOV AX,[0300]` (A1 00 03) ocupan los mismos 3 bytes, el direccionamiento directo a memoria requiere un ciclo adicional de acceso al bus. En el modo inmediato, el valor 0x0005 viaja dentro del flujo de instrucción y llega al procesador en la misma búsqueda (fetch) que trae el opcode. En el modo directo, los dos bytes que siguen al opcode no son el dato sino una dirección: el procesador forma la dirección física DS×16+0300, en este caso 0x07540, y realiza una lectura adicional para traer la palabra almacenada allí. Aun así, el direccionamiento directo es preferible cuando el objetivo es leer un valor que puede cambiar en tiempo de ejecución, como los bytes 78 56 escritos con E en el Paso 11, que ninguna constante ensamblada podría anticipar. Para saber qué codificación produjo cada comando A no hace falta ejecutar nada: basta con `U 100 102` y `U 320 322`, que muestran los opcodes B8 y A1 junto a su operando y revelan si este es un valor o una dirección.
+
+## Parte 2: Ensamblado y ejecución paso a paso
+
+Los tres programas de esta parte se ensamblaron y trazaron en una sola sesión de DEBUG dentro de `C:\LAB3P2`. Todas las tablas usan los valores reales que mostró la sesión, con el segmento 0724 de esta instalación en lugar del 1357 de la guía.
